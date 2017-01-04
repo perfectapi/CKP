@@ -76,38 +76,22 @@ THE SOFTWARE.
 					new chrome.declarativeContent.ShowPageAction()
 				]
 			};
-			chrome.declarativeContent.onPageChanged.addRules([passwordField, textField, iframeLogin]);
+			var other = {
+				id: "other",
+				conditions: [
+					new chrome.declarativeContent.PageStateMatcher({
+						pageUrl: {
+							urlContains: "//"
+						}
+					})
+				],
+				actions: [
+					new chrome.declarativeContent.ShowPageAction()
+				]
+			}
+			chrome.declarativeContent.onPageChanged.addRules([passwordField, textField, iframeLogin, other]);
 		});
 	}
-
-	//keep saved state for the popup for as long as we are alive (not long):
-	chrome.runtime.onConnect.addListener(function(port) {
-		//communicate state on this pipe.  each named port gets its own state.
-		port.onMessage.addListener(function(msg) {
-			if (!msg) return;
-			switch (msg.action) {
-				case 'clear':
-					protectedMemory.clearData();
-					break;
-				case 'save':
-					protectedMemory.setData(msg.key, msg.value);
-					break;
-				case 'get':
-					protectedMemory.getData(msg.key).then(function(value) {
-						port.postMessage(value);
-					});
-					break;
-				default:
-					throw new Error('unrecognized action ' + obj.action)
-					break;
-			}
-		});
-
-		port.onDisconnect.addListener(function() {
-			//uncomment below to forget the state when the popup closes
-			//protectedMemory.clearData();
-		})
-	});
 
 	function handleMessage(message, sender, sendResponse) {
 		if (!message || !message.m) return; //message format unrecognized
@@ -140,7 +124,7 @@ THE SOFTWARE.
 					});
 				}
 			});
-		}
+		} 
 
 		if (message.m == "autofill") {
 			alreadyInjected(message.tabId).then( injectedAlready => {
@@ -152,24 +136,22 @@ THE SOFTWARE.
 						o: message.o,
 						uca: message.uca
 					});
-
-					return;
-				}
-
-				chrome.tabs.executeScript(message.tabId, {
-					file: "keepass.js",
-					allFrames: true,
-					runAt: "document_start"
-				}, function(result) {
-					//script injected
-					chrome.tabs.sendMessage(message.tabId, {
-						m: "fillPassword",
-						u: message.u,
-						p: message.p,
-						o: message.o,
-						uca: message.uca
+				} else {
+					chrome.tabs.executeScript(message.tabId, {
+						file: "keepass.js",
+						allFrames: true,
+						runAt: "document_start"
+					}, function(result) {
+						//script injected
+						chrome.tabs.sendMessage(message.tabId, {
+							m: "fillPassword",
+							u: message.u,
+							p: message.p,
+							o: message.o,
+							uca: message.uca
+						});
 					});
-				});
+				}
 			})
 		}
 	}
@@ -188,26 +170,6 @@ THE SOFTWARE.
 		})
 		
 	}
-
-	//listen for "autofill" message:
-	chrome.runtime.onMessage.addListener(handleMessage);
-
-	chrome.alarms.create("forgetStuff", {
-		delayInMinutes: 1,
-		periodInMinutes: 10
-	});
-
-	chrome.alarms.onAlarm.addListener(function(alarm) {
-		if (alarm.name == 'forgetStuff') {
-			forgetStuff();
-			return;
-		}
-
-		var notificationClear = alarm.name.match(/^clearNotification-(.*)$/)
-		if (notificationClear.length == 2) {
-			chrome.notifications.clear(notificationClear[1])
-		}
-	});
 
 	function forgetStuff() {
 		settings.getAllForgetTimes().then(function(allTimes) {
@@ -268,5 +230,54 @@ THE SOFTWARE.
 	function forgetPassword() {
 		return settings.saveCurrentDatabaseUsage({});
 	}
+
+	//keep saved state for the popup for as long as we are alive (not long):
+	chrome.runtime.onConnect.addListener(function(port) {
+		//communicate state on this pipe.  each named port gets its own state.
+		port.onMessage.addListener(function(msg) {
+			if (!msg) return;
+			switch (msg.action) {
+				case 'clear':
+					protectedMemory.clearData();
+					break;
+				case 'save':
+					protectedMemory.setData(msg.key, msg.value);
+					break;
+				case 'get':
+					protectedMemory.getData(msg.key).then(function(value) {
+						port.postMessage(value);
+					});
+					break;
+				default:
+					throw new Error('unrecognized action ' + obj.action)
+					break;
+			}
+		});
+
+		port.onDisconnect.addListener(function() {
+			//uncomment below to forget the state when the popup closes
+			//protectedMemory.clearData();
+		})
+	});
+
+	//listen for "autofill" message:
+	chrome.runtime.onMessage.addListener(handleMessage);
+
+	chrome.alarms.create("forgetStuff", {
+		delayInMinutes: 1,
+		periodInMinutes: 10
+	});
+
+	chrome.alarms.onAlarm.addListener(function(alarm) {
+		if (alarm.name == 'forgetStuff') {
+			forgetStuff();
+			return;
+		}
+
+		var notificationClear = alarm.name.match(/^clearNotification-(.*)$/)
+		if (notificationClear.length == 2) {
+			chrome.notifications.clear(notificationClear[1])
+		}
+	});
 
 })(new ProtectedMemory(), new Settings());
