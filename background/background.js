@@ -42,41 +42,20 @@ THE SOFTWARE.
 
 	function doReplaceRules() {
 		chrome.declarativeContent.onPageChanged.removeRules(undefined, function() {
-			var passwordField = {
-				id: "pwdField",
+			var any_tab = {
+				id: "any_tab",
 				conditions: [
 					new chrome.declarativeContent.PageStateMatcher({
-						css: ["input[type='password']"]
-					})
-				],
-				actions: [
-					new chrome.declarativeContent.ShowPageAction()
-					//new chrome.declarativeContent.RequestContentScript({js: ['keepass.js']})
-				]
-			};
-			var textField = {
-				id: "textField",
-				conditions: [
-					new chrome.declarativeContent.PageStateMatcher({
-						css: ["input[type='text'], input[type='email'], input:not([type])"]
+						pageUrl: {
+							urlContains: "//"
+						}
 					})
 				],
 				actions: [
 					new chrome.declarativeContent.ShowPageAction()
 				]
 			};
-			var iframeLogin = {
-				id: "iframeLogin",
-				conditions: [
-					new chrome.declarativeContent.PageStateMatcher({
-						css: ["iframe[src^='https']"]
-					})
-				],
-				actions: [
-					new chrome.declarativeContent.ShowPageAction()
-				]
-			};
-			chrome.declarativeContent.onPageChanged.addRules([passwordField, textField, iframeLogin]);
+			chrome.declarativeContent.onPageChanged.addRules([any_tab]);
 		});
 	}
 
